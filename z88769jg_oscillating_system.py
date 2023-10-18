@@ -22,7 +22,6 @@ __email__ = __contact__ = "jackgphysics@gmail.com"
 __date__ = "2023/10/18"
 __deprecated__ = False
 __license__ = "GPLv3"
-__maintainer__ = "developer"
 __status__ = "Production"
 __version__ = "0.0.1"
 
@@ -38,7 +37,7 @@ def ConditionalInput( condition, prompt, failprompt ):
        Parameters:
             condition -- lambda function (float -> bool) used to validate user input\n
             prompt -- string the program should prompt the user for the input\n
-            failprompt -- string the program should say when the user's input fails to meet the condition\n
+            failprompt -- lambda function (float -> string) that returns what the program should say when the user's input fails to meet the condition\n
         Returns:
             float -- a float value provided by the user that satisfies the condition
     """
@@ -49,7 +48,7 @@ def ConditionalInput( condition, prompt, failprompt ):
     while ( not condition( val ) ):
         try:
             if ( val != float( "-inf" ) ):
-                print( failprompt );
+                print( failprompt( val ) );
 
             val = float( input( "\n" + prompt ) );
 
@@ -59,8 +58,8 @@ def ConditionalInput( condition, prompt, failprompt ):
         
         #can't do blanket except, breaks Control-C functionality
         except Exception:
-            print( "That was not a valid number. Please try again." );
-            val = -float( "inf" );
+            print( "That was not a valid number. Valid numbers include only digits and a maximum of one (1) decimal place." );
+            val = float( "-inf" );
         
         #add a little 7C easter egg for Control-C
         except KeyboardInterrupt:
@@ -75,17 +74,39 @@ def ConditionalInput( condition, prompt, failprompt ):
 def a1_condition( a1 ):
     return a1 > 0.1 and a1 < 50.0;
 a1_prompt = "Please enter a value for a1: ";
-a1_failprompt = "Please make sure your value is in the range 0.1 to 50.0 exclusive";
+def a1_failprompt( a1 ):
+    if ( a1 == 0.1 or a1 == 50.0 ):
+        return "Your value is exactly equal to one of the exclusive boundaries";
+    elif ( a1 < 0.1 ):
+        return "Your value is too low - make sure it is greater than 0.1";
+    elif ( a1 > 50.0 ):
+        return "Your value is too high - make sure it is less than 50.0";
+    else:
+        raise SystemError( "This should be an impossible state. You've been bitflipped or something has gone horribly wrong" );
 
 def freq_condition( freq ):
     return freq >= 1 and freq <= 200;
 freq_prompt = "Please enter a value for the frequency (1-200 Hz): ";
-freq_failprompt = "Please make sure your value is in the range 1-200 Hz inclusive.";
+def freq_failprompt( freq ):
+    if ( freq < 1 ):
+        return "Your value is too low - make sure it is greater than 1";
+    elif ( freq > 200 ):
+        return "Your value is too high - make sure it is less than 200";
+    else:
+        raise SystemError( "This should be an impossible state. You've been bitflipped or something has gone horribly wrong" );
 
 def Imin_condition( Imin ):
     return Imin > 0.0 and Imin < 1.0;
 Imin_prompt = "Please enter the minimum fractional intensity (0.0-1.0) to consider: ";
-Imin_failprompt = "Please make sure your value is in the range 0.0 to 1.0 exclusive";
+def Imin_failprompt( Imin ):
+    if ( Imin == 0.0 or Imin == 1.0 ):
+        return "Your value is exactly equal to one of the exclusive boundaries";
+    elif ( Imin < 0.0 ):
+        return "Your value is too low - make sure it is greater than 0.0";
+    elif ( Imin > 1.0 ):
+        return "Your value is too high - make sure it is less than 1.0";
+    else:
+        raise SystemError( "This should be an impossible state. You've been bitflipped or something has gone horribly wrong" );
 
 
 ### MAIN CODE EXECUTION ###
@@ -113,42 +134,35 @@ a2 = freq * 2 * np.pi;
 Imin = ConditionalInput( Imin_condition, Imin_prompt, Imin_failprompt );
 
 
-# make a (simulated) plot #
+# to calculate number to go to, find t when 
+# 2 / ( 2 + a1 t^2 ) = Imin 
+# (basically cos(a2 t) just ranges from 0-1 so we can get the function that the maximums follow by getting rid of it)
+t_max = np.sqrt( ( 2 / Imin - 2 ) / a1 );
+# then add TWO periods to make sure that one peak that doesn't make it to Imin will always be included
+t_max += 2 / freq;
 
-#start at N=10 and climb if neccesary
-num_cycles_to_test = 10;
+#my computer computes this in a matter of milliseconds. If it takes too long for you you can tune it down
+NUM_SEGMENTS = int( 1e6 );
+#get arrays of t and y for our function that correspond to sets of points
+t = np.linspace( 0.0, t_max, NUM_SEGMENTS );
+y = ( 2.0 + a1 * t**2 )**(-1) * np.cos( a2 * t );
 
-#declare final variables outside loop
-n = -1;
-t_val = -1;
+#find values of relative maximums
+max_y_indices = argrelextrema( y, np.greater );
+max_y = y[ max_y_indices ];
 
-#loop so we can increase N if our N doesn't go far enough to reach a cycle with a fractional intensity below Imin
-while ( n < 0 ):
-    #get arrays of t and y for our function that correspond to sets of points
-    t = np.linspace( 0.0, 1/freq * num_cycles_to_test, 1000 * num_cycles_to_test );
-    y = ( 2.0 + a1 * t**2 )**(-1) * np.cos( a2 * t );
-    
-    #find values of relative maximums
-    max_y_indices = argrelextrema( y, np.greater );
-    max_y = y[ max_y_indices ];
+#each relative extrema is a cycle, shifted by 1 because arrays are indexed by 0
+#the start of the array does not count as a relative maximum even though it's an absolute maximum because there is nothing to test it against on the left
+#the first peak after t=0 will be index 0 of the max_y array despite being 1 cycle
+#we could find the last peak above Imin and add one to take care of this index shift problem, or we could simply find the first peak below Imin
+#which would be 1 more than what we need, causing the index problem to cancel out
+#which is what I've done here
+n_osc = np.where( max_y / y[ 0 ] < Imin )[ 0 ][ 0 ];
 
-    #if we don't get to the fractional intensity, go again
-    if ( max_y[ max_y / y[ 0 ] < Imin ].size == 0 ):
-        num_cycles_to_test *= 10;
-        continue;
-    
-    #each relative extrema is a cycle, shifted by 1 because arrays are indexed by 0
-    #the start of the array does not count as a relative maximum even though it's an absolute maximum because there is nothing to test it against on the left
-    #the first peak after t=0 will be index 0 of the max_y array despite being 1 cycle
-    #we could find the last peak above Imin and add one to take care of this index shift problem, or we could simply find the first peak below Imin
-    #which would be 1 more than what we need, causing the index problem to cancel out
-    #which is what I've done here
-    n = np.where( max_y / y[ 0 ] < Imin )[ 0 ][ 0 ];
-    
-    #reverse engineer t value by multiplying index of minima by step size
-    min_y_indices = argrelextrema( y, np.less );
-    t_val = min_y_indices[ 0 ][ n ] * ( (1/freq) * num_cycles_to_test / ( 1000 * num_cycles_to_test ) );
+#reverse engineer t value by multiplying index of minima by step size
+min_y_indices = argrelextrema( y, np.less );
+t_osc = min_y_indices[ 0 ][ n_osc ] * ( t_max / NUM_SEGMENTS );
 
-print( "\nNumber of oscillations above fractional intensity {0}: {1}".format( Imin, n ) )
-print( "Time of intensity minimum following {0}th peak: {1:.3f}".format( n, t_val ) );
+print( "\nNumber of oscillations above fractional intensity {0}: {1}".format( Imin, n_osc ) )
+print( "Time of intensity minimum following {0}th peak: {1:.3f}".format( n_osc, t_osc ) );
     
