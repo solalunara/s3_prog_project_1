@@ -32,21 +32,16 @@ from scipy.signal import argrelextrema;
 
 ### UTILITY FUNCTIONS ###
 
-# ConditionalInput
-# Parameters:
-#       condition: lambda function (float -> bool)
-#           used to validate user input
-#       prompt: string
-#           what the program should prompt the user for the input
-#       failprompt: string
-#           what the program should say when the user's input fails to meet the condition
-# Returns:
-#       float
-#           a float value provided by the user that satisfies the condition
-#
-# Description:
-#       Get a float value from the user and validate it against an arbitrary condition
 def ConditionalInput( condition, prompt, failprompt ):
+    """Get a float value from the user and validate it against an arbitrary condition
+    
+       Parameters:
+            condition -- lambda function (float -> bool) used to validate user input\n
+            prompt -- string the program should prompt the user for the input\n
+            failprompt -- string the program should say when the user's input fails to meet the condition\n
+        Returns:
+            float -- a float value provided by the user that satisfies the condition
+    """
     # treat -inf like a holding value
     # because python doesn't have do-while loops for some reason
     # and we can check for the input being -inf manually and change it
