@@ -71,9 +71,9 @@ a1_failprompt = "Please make sure your value is in the range 0.1 to 50.0 exclusi
 
 #make sure the programming language can handle the value given for the frequency
 def freq_condition( freq ):
-    return abs( freq ) > 1e-300 and abs( freq ) < 1e300;
-freq_prompt = "Please enter a value for the frequency: ";
-freq_failprompt = "Why are you like this. Make sure your value is a reasonable number.";
+    return freq >= 1 and freq <= 200;
+freq_prompt = "Please enter a value for the frequency (1-200 Hz): ";
+freq_failprompt = "Please make sure your value is in the range 1-200 Hz inclusive.";
 
 def Imin_condition( Imin ):
     return Imin > 0.0 and Imin < 1.0;
@@ -88,35 +88,56 @@ print( "\nThe equation for a damped forced oscillation is \n\n"
        "where A0 takes the value 2.0 /m\n"
        "and a1 is limited to the range 0.1 < a1 < 50.0 /m/s^2\n" );
 
-#get variables from user
+# get variables from user #
+
+#a1 relates to how fast the function decays
 a1 = ConditionalInput( a1_condition, a1_prompt, a1_failprompt );
 
+#frequency & angular velocity calculation
 freq = ConditionalInput( freq_condition, freq_prompt, freq_failprompt );
 a2 = freq * 2 * np.pi;
 
+#minimum fractional intensity to consider for counting num cycles
 Imin = ConditionalInput( Imin_condition, Imin_prompt, Imin_failprompt );
 
-#make a plot
 
-#start at N=100 and climb if neccesary
-N = 100;
+# make a plot #
+
+#start at _n=N=10 and climb if neccesary
+num_cycles_to_test = 10;
+
+#declare variables outside loop
 n = -1;
-while ( n < 0 ):
-    t = np.linspace( 0.0, 1/freq * N, 0.01 * ( N / 100.0 ) );
-    y = ( 2.0 + a1 * t**2 )**(-1) * np.cos( a2 * t );
+t_val = -1;
 
+#loop so we can increase N if our N doesn't go far enough to reach a cycle with a fractional intensity below Imin
+while ( n < 0 ):
+    #get t and y for our function
+    t = np.linspace( 0.0, 1/freq * num_cycles_to_test, 100 * num_cycles_to_test );
+    y = ( 2.0 + a1 * t**2 )**(-1) * np.cos( a2 * t );
+    
+    #find values of relative extrema
     max_y_indices = argrelextrema( y, np.greater );
     max_y = y[ max_y_indices ];
 
     #if we don't get to the fractional intensity, go again
-    if ( max_y[ max_y.length - 1 ] > Imin ):
-        N *= 10;
+    if ( max_y[ max_y / y[ 0 ] < Imin ].size == 0 ):
+        num_cycles_to_test *= 10;
         continue;
     
-    for i in range( max_y.length ):
-        if ( max_y[ i ] < Imin ):
-            n = i; #want the num before it goes below (-1), but +1 because start at 0
-            break;
+    #each relative extrema is a cycle, shifted by 1 because indexed by 0
+    #we'll get the first one that's below Imin but it'll be equivalent to the last cycle above Imin because index shifting
+    n = np.where( max_y / y[ 0 ] < Imin )[ 0 ][ 0 ];
+    
+    
+    #for i in range( max_y.size ):
+    #    if ( max_y[ i ] / y[ 0 ] < Imin ):
+    #        n = i;
+    #        break;
         
     min_y_indices = argrelextrema( y, np.less );
+    t_val = min_y_indices[ 0 ][ n ] * ( (1/freq) * num_cycles_to_test / ( 100 * num_cycles_to_test ) );
+
+print( "\nNumber of oscillations above fractional intensity {0}: {1}".format( Imin, n ) )
+print( "Time of intensity minimum following {0}th peak: {1:.3f}".format( n, t_val ) );
     
