@@ -135,9 +135,9 @@ Imin = ConditionalInput( Imin_condition, Imin_prompt, Imin_failprompt );
 
 
 # to calculate number to go to, find t when 
-# 2 / ( 2 + a1 t^2 ) = Imin 
+# 2 / ( 2 + a1 t^2 ) = sqrt( Imin ) 
 # (basically cos(a2 t) just ranges from 0-1 so we can get the function that the maximums follow by getting rid of it)
-t_max = np.sqrt( ( 2 / Imin - 2 ) / a1 );
+t_max = np.sqrt( ( 2 / np.sqrt( Imin ) - 2 ) / a1 );
 # then add TWO periods to make sure that one peak that doesn't make it to Imin will always be included
 t_max += 2 / freq;
 
@@ -146,10 +146,11 @@ NUM_SEGMENTS = int( 1e6 );
 #get arrays of t and y for our function that correspond to sets of points
 t = np.linspace( 0.0, t_max, NUM_SEGMENTS );
 y = ( 2.0 + a1 * t**2 )**(-1) * np.cos( a2 * t );
+I = y**2 / y[ 0 ]**2;
 
 #find values of relative maximums
-max_y_indices = argrelextrema( y, np.greater );
-max_y = y[ max_y_indices ];
+max_I_indices = argrelextrema( I, np.greater );
+max_I = I[ max_I_indices ];
 
 #each relative extrema is a cycle, shifted by 1 because arrays are indexed by 0
 #the start of the array does not count as a relative maximum even though it's an absolute maximum because there is nothing to test it against on the left
@@ -157,11 +158,11 @@ max_y = y[ max_y_indices ];
 #we could find the last peak above Imin and add one to take care of this index shift problem, or we could simply find the first peak below Imin
 #which would be 1 more than what we need, causing the index problem to cancel out
 #which is what I've done here
-n_osc = np.where( max_y / y[ 0 ] < Imin )[ 0 ][ 0 ];
+n_osc = np.where( max_I < Imin )[ 0 ][ 0 ];
 
 #reverse engineer t value by multiplying index of minima by step size
-min_y_indices = argrelextrema( y, np.less );
-t_osc = min_y_indices[ 0 ][ n_osc ] * ( t_max / NUM_SEGMENTS );
+min_I_indices = argrelextrema( I, np.less );
+t_osc = min_I_indices[ 0 ][ n_osc ] * ( t_max / NUM_SEGMENTS );
 
 print( "\nNumber of oscillations above fractional intensity {0}: {1}".format( Imin, n_osc ) )
 print( "Time of intensity minimum following {0}th peak: {1:.3f}".format( n_osc, t_osc ) );
